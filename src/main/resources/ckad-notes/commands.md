@@ -7,6 +7,7 @@
 - `Ctrl+F` for the resource (Pods, Deployments, Services, ...) to jump to that section.
 - Each resource section follows the same order: **Generate → Inspect → Edit → Delete**.
 - Assumes `k=kubectl`, `$do=--dry-run=client -o yaml`, `$now=--force --grace-period=0` are set (chapter 00).
+- For deeper per-topic reference, see [`commands/`](commands/) — one focused file per resource. This page is the single-file global view that mirrors what's in there.
 
 ---
 
@@ -28,7 +29,32 @@ kubectl config view --minify | grep namespace
 
 ---
 
-## 2. The YAML generation pattern (the time-saver)
+## 2. Imperative commands & dry-run YAML generation (the exam time-saver)
+
+> Typing YAML by hand is slow. Imperative commands create resources in one line, and `--dry-run=client -o yaml` turns those same commands into a manifest you can edit. Use this pattern for almost every "create a thing" question. Full reference: [`commands/imperative.md`](commands/imperative.md).
+
+### The two imperative entry points
+
+| Command | What it creates |
+|---|---|
+| `kubectl run` | **Pods only** (since 1.18 — does not create Deployments anymore) |
+| `kubectl create` | Everything else: deployments, services (via `expose`), configmaps, secrets, jobs, cronjobs, namespaces, roles, ... |
+
+### Path A — one-shot imperative (no file)
+
+Fastest. Use when every required field has a flag.
+
+```bash
+k run nginx --image=nginx
+k create deployment web --image=nginx --replicas=3
+k create configmap app-cfg --from-literal=ENV=prod
+k expose deployment web --port=80 --type=NodePort
+k create namespace dev
+```
+
+### Path B — generate YAML, edit, apply
+
+When the question needs fields imperative flags don't cover (env vars on a Deployment, probes, volumes, resources, securityContext).
 
 ```bash
 # 1. Generate template
@@ -49,7 +75,22 @@ k get <resource> <name>
 k describe <resource> <name>
 ```
 
-`kubectl run` generates **pods only**. `kubectl create` covers everything else (deployments, services via `expose`, configmaps, secrets, jobs, cronjobs, namespaces).
+### What `--dry-run=client -o yaml` actually does
+
+- `--dry-run=client` — kubectl builds the spec **without sending it to the API server**. Nothing is created.
+- `-o yaml` — print the would-be-sent object as YAML.
+- Combined with `> file.yaml`, you get a fully-formed manifest (apiVersion, kind, metadata, spec all populated) ready to edit.
+
+`--dry-run=server` does the same but the API server also validates (catches missing namespaces, unknown fields, admission rejections). Still no persist.
+
+### Exam-time strategy
+
+1. Read the whole question — note namespace, labels, image version, env vars.
+2. Pick the entry point: `run` for a Pod, `create <kind>` for everything else, `expose` for a Service.
+3. Try **pure imperative first**. Fewer chances to mis-indent YAML.
+4. If a required field has no flag, switch to **`$do > file.yaml`**, edit, apply.
+5. Always pass `-n <ns>` or set the default namespace first — forgetting this is the most common silly mistake.
+6. Verify with `k get` and `k describe` (check the `Events:` section).
 
 ---
 
@@ -337,6 +378,7 @@ k config view --minify | grep namespace
 
 ## See also
 
+- [`commands/`](commands/) — per-topic focused files (start with [`imperative.md`](commands/imperative.md))
 - `00-local-lab-setup.md` — full lab setup, vim survival kit, exam environment
 - `03-pods.md` — pod concepts, lifecycle, multi-container patterns
 - `04-pod-yaml.md` — YAML structure, real-world walkthrough, template-edit-apply workflow
